@@ -1,75 +1,90 @@
-var SETTINGS = {
-    APP_NAME: 'JSONToSQL'
-};
+module.exports = function(init){
+    var knex = require('knex')(init);
+    var _ = require('lodash');
+    var functions = {
+        $select: $select,
+        $where: $where,
+        $from: $from,
+        $in: $in
+    };
 
-var _ = require('lodash');
-var knex = require('knex')({
-    client: 'mysql',
-    connection: {
-        host     : '127.0.0.1',
-        user     : 'your_database_user',
-        password : 'your_database_password',
-        database : 'myapp_test'
+    function jsonKnex(jsonQuery, knexObj){
+        var $knex = knexObj || knex();
+
+        for(var key in jsonQuery){
+            if ( _.isFunction( functions[key] ) ){
+                var params = jsonQuery[key];
+                functions[key]($knex, params);
+            }else{
+                console.warn( key + ' is an unrecognized word' )
+            }
+
+            if(_.isObject(params)){
+                jsonKnex(params, $knex);
+            }
+        }
+        return $knex;
+    };
+
+    function $select($knex, qObject){
+        var fields = qObject.$fields ? _.cloneDeep(qObject.$fields) : '*';
+        delete qObject.$fields;
+        return $knex.select(fields);
     }
-});
 
-var functionsVocabulary = require('./dictionary/functions');
+    function $from($knex, qObject){
+        return $knex.from(qObject);
+    }
 
-global.kn = function(jsonQuery, knexObj){
-    var $knex = knexObj || knex();
+    function $where($knex, qObject){
+        var $rel = qObject.$rel || 'and';
+        delete  qObject.$rel;
 
-    for(var key in jsonQuery){
-        if ( _.isFunction(functionsVocabulary[key]) ){
-            var params = jsonQuery[key];
-            functionsVocabulary[key]($knex, params);
+        if(qObject.$in){
+            $in($knex, qObject.$in)
+            delete qObject.$in;
+        }
+
+        for(var key in qObject){
+            if( _.isString(qObject[key]) ){
+                $knex[$rel + 'Where'](key, qObject[key]);
+            }else if(_.isArray(qObject[key])){
+                qObject[key].unshift(key);
+                $knex[$rel + 'Where'].apply($knex, qObject[key] );
+            }
+            delete  qObject[key];
+        }
+        return $knex;
+    }
+
+    function $in($knex, qObject){
+        if( _isMultipleCommands(qObject) ){
+            qObject.forEach(function(command){
+                $in($knex, command);
+            });
+        }else if( _isValueIsQuery(qObject) ){
+            var innerQuery;
+            innerQuery = jsonKnex(qObject[1]);
+            return $knex.whereIn(qObject[0], innerQuery);
         }else{
-            console.warn( key + ' is an unrecognized word by ' + SETTINGS.APP_NAME )
-        }
-
-        if(_.isObject(params)){
-            kn(params, $knex);
+            return $knex.whereIn(qObject);
         }
     }
-    return $knex;
-};
 
-var query = {
-    $select: {
-        $from: 'users',
-        $fields: ['first_name', 'last_name'],
-        $where: {
-            $rel: "and",
-            first_name: "adiel",
-            age: ['>', 25],
-            last_name: ['like', '%zale%'],
-            $in: [
-                [6, {
-                    $select: {
-                        $from: 'users',
-                        $fields: 'id',
-                        $where: {
-                            age: ['<=', 30]
-                        }
-                    }
-                }],
-                ['adiel', {
-                    $select: {
-                        $from: 'users',
-                        $fields: 'id',
-                        $where: {
-                            age: ['<=', 30]
-                        }
-                    }
-                }]
-            ]
-/*            $in: [6, {$select: {
-
-            }}]*/
-        }/*,
-        $join: {
-
-        }*/
+    /**
+     * getting every value from the main qObject to all it's offspring, returns
+     * */
+    function _isMultipleCommands(qObject){
+        return _.isArray(qObject) && _.isArray(qObject[0]);
     }
-};
 
-console.log( kn(query).toString() );
+    /**
+     * should get the final [key, value] qObject (_isMultipleCommands(qObject) == false).
+     * if the value is calculated SQL query returns true.
+     * */
+    function _isValueIsQuery(qObject){
+        return !_.isUndefined(qObject[1].$select);
+    }
+
+    return jsonKnex;
+};

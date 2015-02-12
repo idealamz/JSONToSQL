@@ -1,11 +1,24 @@
-module.exports = {
-    $select: $select,
-    $from: $from,
-    $where: $where,
-    $in: $in
-};
+module.exports = functionjsonKnex;
 
 var _ = require('lodash');
+
+function jsonKnex(jsonQuery, knexObj){
+    var $knex = knexObj || knex();
+
+    for(var key in jsonQuery){
+        if ( _.isFunction(key) ){
+            var params = jsonQuery[key];
+            key($knex, params);
+        }else{
+            console.warn( key + ' is an unrecognized word' )
+        }
+
+        if(_.isObject(params)){
+            jsonKnex(params, $knex);
+        }
+    }
+    return $knex;
+};
 
 function $select($knex, qObject){
     var fields = qObject.$fields ? _.cloneDeep(qObject.$fields) : '*';
@@ -45,7 +58,7 @@ function $in($knex, qObject){
         });
     }else if( _isValueIsQuery(qObject) ){
         var innerQuery;
-        innerQuery = kn(qObject[1]);
+        innerQuery = jsonKnex(qObject[1]);
         return $knex.whereIn(qObject[0], innerQuery);
     }else{
         return $knex.whereIn(qObject);
