@@ -1,14 +1,21 @@
-# JSONToSQL
-
 ### Why?
 
-during my development when dealing with SQL queries I found my self handling with too much string manipulations mixed with logic ending with unreadable spaghetti code which caused a lot of stupid bugs like missed closing quotation mark and \<other examples\>
+during my development when dealing with SQL queries I found my self handling with too much string manipulations mixed with logic ending with unreadable spaghetti code which caused a lot of stupid bugs like missed closing quotation mark etc...
+
 then I found [knex.js](http://knexjs.org) and I found it lovely. with knex you can express your SQL with regular javaScript functions with intuitive syntax like select(), where() etc.
+
+from the other hand, while developing in JS I found JSON as the most convenient data structure I know.
+
+so I decided to combine all that good things to one place.
+
+it's a very young project and I would be very glad to get help with suggestions and pull requests.
+
+hope you will enjoy it.
 
 ### examples
 
 ```javascript
-var JSONToSQL = require('./index.js')({
+var JSONToSQL = require('JSONToSQL')({
     client: 'mysql',
     connection: {
         host     : 'database_host',
